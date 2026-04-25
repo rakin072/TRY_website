@@ -1,9 +1,36 @@
 /* =========================
+   Root Design Tokens
+========================= */
+:root {
+  --color-primary: #c0392b;
+  --color-primary-light: #e74c3c;
+  --color-primary-dark: #922b21;
+  --color-accent: #f39c12;
+  --color-accent-light: #f7dc6f;
+  --color-bg: #ffffff;
+  --color-bg-secondary: #f8f9fa;
+  --color-bg-dark: #1a1a2e;
+  --color-text: #2c2c2c;
+  --color-text-light: #666666;
+  --color-text-white: #ffffff;
+  --color-border: #e0e0e0;
+  --font-bengali: 'Hind Siliguri', sans-serif;
+  --font-english: 'Poppins', sans-serif;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.16);
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --transition: all 0.3s ease;
+}
+
+
+
+/* =========================
    Navbar
 ========================= */
-header{
-  background-color: red;
-}
+
 .navbar{
   position: fixed;
   inset: 0 0 auto 0;
