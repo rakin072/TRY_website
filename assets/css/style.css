@@ -36,12 +36,12 @@
   inset: 0 0 auto 0;
   z-index: 1000;
   transition: var(--transition);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-primary);
   backdrop-filter: blur(10px);
 }
 
-.navbar .scrolled {
-  background: rgba(255, 255, 255, 0.96);
+.navbar.scrolled {
+  background: var(--color-primary-dark);
   box-shadow: var(--shadow-sm);
 }
 
