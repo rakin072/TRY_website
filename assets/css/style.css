@@ -292,3 +292,71 @@
 .service-card:hover i {
   transform: scale(1.12);
 }
+
+
+/* =========================
+   News
+========================= */
+.news-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.news-card {
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.news-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-md);
+}
+
+.news-thumb-wrap {
+  position: relative;
+  overflow: hidden;
+}
+
+.news-thumb {
+  width: 100%;
+  height: 240px;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.news-card:hover .news-thumb {
+  transform: scale(1.06);
+}
+
+.date-badge {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  background: var(--color-primary);
+  color: var(--color-text-white);
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.news-body {
+  padding: 18px;
+}
+
+.news-body h3 {
+  margin: 10px 0;
+  font-size: 1.2rem;
+}
+
+.tag {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--color-primary-dark);
+  background: rgba(192, 57, 43, 0.12);
+  padding: 5px 10px;
+  border-radius: 999px;
+}
