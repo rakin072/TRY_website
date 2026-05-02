@@ -1,41 +1,60 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="assets/css/style.css" />
-    <title>TRY-KUET Social Service Club</title>
+  <!-- Meta -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="TRY - KUET Social Service Club. Standing by the people, always." />
+  <meta property="og:title" content="TRY - KUET Social Service Club" />
+  <meta property="og:image" content="assets/images/logo.svg" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+
+  <!-- Styles -->
+  <link rel="icon" type="image/svg+xml" href="assets/images/logo.svg" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="stylesheet" href="assets/css/animations.css" />
+  <link rel="stylesheet" href="assets/css/responsive.css" />
+
+  <title>TRY - KUET Social Service Club</title>
 </head>
 <body>
-    <!--Header / Navbar Section-->
-    <header>
-        <nav class="navbar" id="navbar" aria-label="Main navigation">
-            <div class="container nav-wrap">
-                <a href="#home" class="brand" aria-label="TRY home">
-                    <div class="brand-text">
-                        <strong>TRY</strong>
-                        <span>KUET Social Service Club</span>
-                    </div>
-                </a>
+  <!-- Header / Navbar -->
+  <header>
+    <nav class="navbar" id="navbar" aria-label="Main navigation">
+      <div class="container nav-wrap">
+        <a href="#home" class="brand" aria-label="TRY home">
+          <img src="assets/images/logo.svg" alt="TRY KUET logo" class="brand-logo" />
+          <div class="brand-text">
+            <strong>TRY</strong>
+            <span>KUET Social Service Club</span>
+          </div>
+        </a>
 
-                <button class="hamburger" id="hamburger" aria-label="Open navigation menu" aria-expanded="false" aria-controls="nav-menu">
-                    <span></span><span></span><span></span>
-                </button>
+        <button class="hamburger" id="hamburger" aria-label="Open navigation menu" aria-expanded="false" aria-controls="nav-menu">
+          <span></span><span></span><span></span>
+        </button>
 
-                <ul class="nav-menu" id="nav-menu">
-                    <li><a href="#home" class="nav-link active">Home</a></li>
-                    <li><a href="#about" class="nav-link">About</a></li>
-                    <li><a href="#services" class="nav-link">Activites</a></li>
-                    <li><a href="#gallery" class="nav-link">Gallery</a></li>
-                    <li><a href="#news" class="nav-link">News</a></li>
-                    <li><a href="#contact" class="nav-link">Contact</a></li>
-                    <li><a href="#involved" class="btn btn-donate">Donate</a></li>
-                </ul>
-            </div>
-        </nav>
-    </header>
+        <ul class="nav-menu" id="nav-menu">
+          <li><a href="#home" class="nav-link active">Home</a></li>
+          <li><a href="#about" class="nav-link">About</a></li>
+          <li><a href="#services" class="nav-link">Activities</a></li>
+          <li><a href="#gallery" class="nav-link">Gallery</a></li>
+          <li><a href="#news" class="nav-link">News</a></li>
+          <li><a href="#contact" class="nav-link">Contact</a></li>
+          <li><a href="#involved" class="btn btn-donate" aria-label="Donate to TRY">Donate</a></li>
+        </ul>
+      </div>
+    </nav>
+  </header>
 
-    <main>
+  <main>
     <!-- Hero -->
     <section class="hero" id="home" aria-label="Hero">
       <div class="hero-overlay"></div>
@@ -52,7 +71,267 @@
         <i class="fa-solid fa-chevron-down"></i>
       </a>
     </section>
-    </main>
 
+    <!-- Stats -->
+    <section class="stats" id="stats" aria-label="Club impact statistics">
+      <div class="container stats-grid">
+        <article class="stat-item reveal">
+          <i class="fa-solid fa-users"></i>
+          <h3 class="counter" data-target="500">0</h3>
+          <p>Volunteers</p>
+        </article>
+        <article class="stat-item reveal">
+          <i class="fa-solid fa-diagram-project"></i>
+          <h3 class="counter" data-target="30">0</h3>
+          <p>Projects</p>
+        </article>
+        <article class="stat-item reveal">
+          <i class="fa-solid fa-hand-holding-heart"></i>
+          <h3 class="counter" data-target="10000">0</h3>
+          <p>People Helped</p>
+        </article>
+        <article class="stat-item reveal">
+          <i class="fa-solid fa-award"></i>
+          <h3 class="counter" data-target="10">0</h3>
+          <p>Years Active</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- About -->
+    <section class="section about" id="about" aria-label="About TRY">
+      <div class="container about-grid">
+        <div class="about-image-wrap reveal">
+          <img src="https://picsum.photos/seed/try-about/900/700" alt="TRY volunteers helping community members" class="about-image" />
+        </div>
+        <div class="about-content reveal">
+          <h2>About TRY</h2>
+          <p class="bn">TRY, KUET-এর একটি স্বেচ্ছাসেবী সংগঠন, মানবিক সহায়তা, শিক্ষা, স্বাস্থ্যসেবা এবং দুর্যোগকালীন সহায়তায় নিরলসভাবে কাজ করে যাচ্ছে।</p>
+          <p>We are a student-led humanitarian platform at Khulna University of Engineering & Technology, driven by empathy, service, and collective action.</p>
+          <div class="about-highlights">
+            <div><i class="fa-solid fa-bullseye"></i><span><strong>Mission</strong> Compassion-first service</span></div>
+            <div><i class="fa-solid fa-eye"></i><span><strong>Vision</strong> Dignity and opportunity for all</span></div>
+            <div><i class="fa-solid fa-handshake"></i><span><strong>Values</strong> Integrity, Inclusion, Unity</span></div>
+          </div>
+          <a href="pages/about.html" class="text-link" aria-label="Learn more about TRY">Learn More <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Services -->
+    <section class="section" id="services" aria-label="What we do">
+      <div class="container">
+        <div class="section-head reveal">
+          <h2>What We Do</h2>
+          <span class="underline"></span>
+        </div>
+        <div class="services-grid">
+          <article class="service-card reveal"><i class="fa-solid fa-hand-holding-dollar"></i><h3>Emergency Fund Collection</h3><p>Rapid fundraising drives to support urgent community needs.</p></article>
+          <article class="service-card reveal"><i class="fa-solid fa-book-open"></i><h3>Education Support</h3><p>Mentoring, materials, and support for learners in need.</p></article>
+          <article class="service-card reveal"><i class="fa-solid fa-house-flood-water"></i><h3>Disaster Relief</h3><p>Coordinated aid for flood, storm, and crisis-affected families.</p></article>
+          <article class="service-card reveal"><i class="fa-solid fa-bowl-food"></i><h3>Food Distribution</h3><p>Community meal drives for vulnerable neighborhoods.</p></article>
+          <article class="service-card reveal"><i class="fa-solid fa-kit-medical"></i><h3>Medical Aid</h3><p>Health camps, medicine support, and awareness outreach.</p></article>
+          <article class="service-card reveal"><i class="fa-solid fa-city"></i><h3>Community Development</h3><p>Long-term local projects built with community participation.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- News -->
+    <section class="section section-alt" id="news" aria-label="News and stories">
+      <div class="container">
+        <div class="section-head reveal">
+          <h2>News & Stories</h2>
+          <span class="underline"></span>
+        </div>
+        <div class="news-grid">
+          <article class="news-card reveal">
+            <div class="news-thumb-wrap">
+              <img src="https://picsum.photos/seed/try-news1/900/600" alt="Relief supplies being distributed" class="news-thumb" />
+              <span class="date-badge">12 Apr 2026</span>
+            </div>
+            <div class="news-body"><span class="tag">Relief</span><h3>Emergency Flood Relief Drive Across Khulna</h3><p>Students and alumni partnered to deliver essentials to affected communities.</p><a href="pages/news.html" class="text-link">Read More <i class="fa-solid fa-arrow-right"></i></a></div>
+          </article>
+          <article class="news-card reveal">
+            <div class="news-thumb-wrap">
+              <img src="https://picsum.photos/seed/try-news2/900/600" alt="Children at education support event" class="news-thumb" />
+              <span class="date-badge">01 Mar 2026</span>
+            </div>
+            <div class="news-body"><span class="tag">Education</span><h3>Weekend Learning Support for Local Students</h3><p>TRY volunteers launched tutoring sessions and distributed learning kits.</p><a href="pages/news.html" class="text-link">Read More <i class="fa-solid fa-arrow-right"></i></a></div>
+          </article>
+          <article class="news-card reveal">
+            <div class="news-thumb-wrap">
+              <img src="https://picsum.photos/seed/try-news3/900/600" alt="Emergency fund collection campaign at KUET" class="news-thumb" />
+              <span class="date-badge">18 Jan 2026</span>
+            </div>
+            <div class="news-body"><span class="tag">Relief</span><h3>Emergency Fund Collection Supports 200+ Families</h3><p>A campus-wide fundraising campaign connected support to families in urgent need.</p><a href="pages/news.html" class="text-link">Read More <i class="fa-solid fa-arrow-right"></i></a></div>
+          </article>
+        </div>
+        <div class="center reveal"><a href="pages/news.html" class="btn btn-outline-red" aria-label="View all TRY news">View All News</a></div>
+      </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="section testimonials" aria-label="Impact stories">
+      <div class="container reveal">
+        <div class="section-head">
+          <h2>Impact Stories</h2>
+          <span class="underline"></span>
+        </div>
+        <div class="testimonial-slider" id="testimonial-slider">
+          <article class="slide active">
+            <i class="fa-solid fa-quote-left"></i>
+            <p>TRY gave us support when we had nowhere to turn after the floods. Their volunteers stood with us like family.</p>
+            <h4>Sharmin Akter</h4>
+            <span>Community Member</span>
+          </article>
+          <article class="slide">
+            <i class="fa-solid fa-quote-left"></i>
+            <p>Joining TRY transformed my student life. Service taught me leadership, empathy, and responsibility.</p>
+            <h4>Fahim Hasan</h4>
+            <span>Volunteer</span>
+          </article>
+          <article class="slide">
+            <i class="fa-solid fa-quote-left"></i>
+            <p>The emergency fund network built by TRY helped us respond in the most critical hours.</p>
+            <h4>Dr. Tamanna Rahman</h4>
+            <span>Medical Coordinator</span>
+          </article>
+        </div>
+        <div class="slider-dots" id="slider-dots" aria-label="Testimonial navigation"></div>
+      </div>
+    </section>
+
+    <!-- Gallery -->
+    <section class="section" id="gallery" aria-label="Photo gallery preview">
+      <div class="container">
+        <div class="section-head reveal">
+          <h2>Photo Gallery</h2>
+          <span class="underline"></span>
+        </div>
+
+        <div class="filter-tabs reveal" id="gallery-filters">
+          <button class="filter-btn active" data-filter="all" aria-label="Show all gallery photos">All</button>
+          <button class="filter-btn" data-filter="events" aria-label="Show events photos">Events</button>
+          <button class="filter-btn" data-filter="relief" aria-label="Show relief photos">Relief</button>
+          <button class="filter-btn" data-filter="education" aria-label="Show education photos">Education</button>
+        </div>
+
+        <div class="masonry-grid" id="gallery-grid">
+          <figure class="gallery-item reveal" data-category="events"><img src="https://picsum.photos/seed/try-g1/700/950" alt="TRY campus event photo" /><figcaption><i class="fa-solid fa-magnifying-glass-plus"></i></figcaption></figure>
+          <figure class="gallery-item reveal" data-category="relief"><img src="https://picsum.photos/seed/try-g2/700/800" alt="TRY disaster relief activity" /><figcaption><i class="fa-solid fa-magnifying-glass-plus"></i></figcaption></figure>
+          <figure class="gallery-item reveal" data-category="education"><img src="https://picsum.photos/seed/try-g3/700/900" alt="TRY education support session" /><figcaption><i class="fa-solid fa-magnifying-glass-plus"></i></figcaption></figure>
+          <figure class="gallery-item reveal" data-category="events"><img src="https://picsum.photos/seed/try-g4/700/700" alt="TRY volunteer gathering" /><figcaption><i class="fa-solid fa-magnifying-glass-plus"></i></figcaption></figure>
+          <figure class="gallery-item reveal" data-category="relief"><img src="https://picsum.photos/seed/try-g5/700/1000" alt="TRY food distribution day" /><figcaption><i class="fa-solid fa-magnifying-glass-plus"></i></figcaption></figure>
+          <figure class="gallery-item reveal" data-category="education"><img src="https://picsum.photos/seed/try-g6/700/840" alt="TRY mentoring workshop" /><figcaption><i class="fa-solid fa-magnifying-glass-plus"></i></figcaption></figure>
+        </div>
+
+        <div class="center reveal"><a href="pages/gallery.html" class="text-link" aria-label="Open full gallery page">View Full Gallery <i class="fa-solid fa-arrow-right"></i></a></div>
+      </div>
+    </section>
+
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox" aria-hidden="true">
+      <button class="lightbox-btn close" id="lightbox-close" aria-label="Close gallery lightbox"><i class="fa-solid fa-xmark"></i></button>
+      <button class="lightbox-btn prev" id="lightbox-prev" aria-label="Previous gallery image"><i class="fa-solid fa-chevron-left"></i></button>
+      <img src="" alt="Expanded gallery preview" id="lightbox-image" />
+      <button class="lightbox-btn next" id="lightbox-next" aria-label="Next gallery image"><i class="fa-solid fa-chevron-right"></i></button>
+    </div>
+
+    <!-- Get Involved -->
+    <section class="section involved" id="involved" aria-label="Get involved">
+      <div class="container">
+        <div class="involved-grid">
+          <article class="involved-card reveal"><i class="fa-solid fa-person-circle-plus"></i><h3>Volunteer</h3><p>Join our dedicated team and serve communities with heart.</p><a href="#contact" class="btn btn-outline-light" aria-label="Volunteer with TRY">Join Now</a></article>
+          <article class="involved-card reveal"><i class="fa-solid fa-heart"></i><h3>Donate</h3><p>Your contribution helps us deliver urgent support where needed.</p><a href="#contact" class="btn btn-outline-light" aria-label="Donate to TRY">Contribute</a></article>
+          <article class="involved-card reveal"><i class="fa-solid fa-handshake-angle"></i><h3>Partner</h3><p>Collaborate with us to scale impact and empower communities.</p><a href="#contact" class="btn btn-outline-light" aria-label="Partner with TRY">Partner Up</a></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contact -->
+    <section class="section" id="contact" aria-label="Contact TRY">
+      <div class="container contact-grid">
+        <div class="contact-cards reveal">
+          <article><i class="fa-solid fa-envelope"></i><h3>Email</h3><p><a href="mailto:trykuet@gmail.com">trykuet@gmail.com</a></p></article>
+          <article><i class="fa-solid fa-hashtag"></i><h3>Social</h3><p>@try_kuet (Instagram & Facebook)</p></article>
+          <article><i class="fa-solid fa-location-dot"></i><h3>Location</h3><p>KUET Campus, Khulna, Bangladesh</p></article>
+          <article><i class="fa-solid fa-phone"></i><h3>Phone</h3><p>+880 1XXX-XXXXXX</p></article>
+        </div>
+
+        <form id="contact-form" class="contact-form reveal" novalidate>
+          <h2>Send a Message</h2>
+          <label for="name">Name</label>
+          <input id="name" name="name" type="text" required />
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" required />
+          <label for="subject">Subject</label>
+          <input id="subject" name="subject" type="text" required />
+          <label for="message">Message</label>
+          <textarea id="message" name="message" rows="5" required></textarea>
+          <button type="submit" class="btn btn-primary" aria-label="Send contact form">Send Message</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- Back To Top -->
+  <button id="back-to-top" class="back-to-top" aria-label="Back to top">
+    <i class="fa-solid fa-arrow-up"></i>
+  </button>
+
+  <!-- Footer -->
+  <footer class="footer" aria-label="Site footer">
+    <div class="container footer-grid">
+      <div>
+        <a href="#home" class="brand footer-brand" aria-label="TRY home in footer">
+          <img src="assets/images/logo.svg" alt="TRY logo in footer" class="brand-logo" />
+          <div class="brand-text"><strong>TRY</strong><span>KUET Social Service Club</span></div>
+        </a>
+        <p>Serving humanity with dignity, unity, and hope.</p>
+        <div class="socials">
+          <a href="#" aria-label="TRY on Facebook"><i class="fa-brands fa-facebook-f"></i></a>
+          <a href="#" aria-label="TRY on Instagram"><i class="fa-brands fa-instagram"></i></a>
+          <a href="#" aria-label="TRY on YouTube"><i class="fa-brands fa-youtube"></i></a>
+          <a href="#" aria-label="TRY on X"><i class="fa-brands fa-x-twitter"></i></a>
+        </div>
+      </div>
+      <div>
+        <h3>Quick Links</h3>
+        <ul>
+          <li><a href="#about">About</a></li>
+          <li><a href="#services">Activities</a></li>
+          <li><a href="#gallery">Gallery</a></li>
+          <li><a href="#news">News</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Activities</h3>
+        <ul>
+          <li>Emergency Fund Collection</li>
+          <li>Education Support</li>
+          <li>Disaster Relief</li>
+          <li>Medical Aid</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Newsletter</h3>
+        <form class="newsletter" aria-label="Newsletter form">
+          <input type="email" placeholder="Your email" aria-label="Your email" />
+          <button type="submit" class="btn btn-primary" aria-label="Subscribe to newsletter">Subscribe</button>
+        </form>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 TRY - KUET Social Service Club. All rights reserved.</p>
+      <a href="#" aria-label="Read privacy policy">Privacy Policy</a>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="assets/js/main.js"></script>
+  <script src="assets/js/counter.js"></script>
+  <script src="assets/js/gallery.js"></script>
+  <script src="assets/js/slider.js"></script>
 </body>
 </html>
