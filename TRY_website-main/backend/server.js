@@ -1,32 +1,14 @@
 const express = require('express');
 const cors = require('cors');
 const sql = require('mssql/msnodesqlv8');
-const path = require('path');
 
 const app = express();
 const PORT = 5138;
 
-// Allow all localhost origins + file protocol
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like file:// or curl)
-    if (!origin) return callback(null, true);
-    if (
-      origin.startsWith('http://localhost') ||
-      origin.startsWith('https://localhost') ||
-      origin.startsWith('http://127.0.0.1') ||
-      origin === 'null'
-    ) {
-      return callback(null, true);
-    }
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true
+  origin: ['http://localhost:5501', 'https://localhost:5501']
 }));
 app.use(express.json());
-
-// Serve the frontend static files
-app.use(express.static(path.join(__dirname, '..')));
 
 const dbConfig = {
   connectionString: 'Driver={ODBC Driver 18 for SQL Server};Server=localhost;Database=TryWebsite;Trusted_Connection=yes;TrustServerCertificate=yes;'
@@ -100,54 +82,9 @@ app.post('/api/messages', async (req, res) => {
   }
 });
 
-// POST /api/volunteers - Save volunteer registration
-app.post('/api/volunteers', async (req, res) => {
-  const { name, email, phone } = req.body;
-  if (!name || !email) {
-    return res.status(400).json({ success: false, error: 'Name and email are required' });
-  }
-  try {
-    const request = new sql.Request();
-    request.input('name', sql.NVarChar(100), name);
-    request.input('email', sql.NVarChar(255), email);
-    request.input('phone', sql.NVarChar(50), phone || null);
-    await request.query(`
-      INSERT INTO volunteers (name, email, phone, submitted_at, status)
-      VALUES (@name, @email, @phone, GETDATE(), 'Pending')
-    `);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error saving volunteer:', err.message);
-    res.status(500).json({ success: false, error: 'Database error' });
-  }
-});
-
-// GET /api/news - Fetch news from DB
-app.get('/api/news', async (req, res) => {
-  try {
-    const result = await sql.query`SELECT TOP 10 id, title, category, content, image_path, published_at FROM news WHERE is_published = 1 ORDER BY published_at DESC`;
-    res.json(result.recordset);
-  } catch (err) {
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// GET /api/activities - Fetch activities from DB
-app.get('/api/activities', async (req, res) => {
-  try {
-    const result = await sql.query`SELECT id, title, description, icon_name FROM activities ORDER BY id`;
-    res.json(result.recordset);
-  } catch (err) {
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
 app.listen(PORT, () => {
-  console.log(`\n🚀 TRY Website is LIVE!`);
-  console.log(`   🌐 Open website: http://localhost:${PORT}`);
-  console.log(`   💚 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`   📊 Site stats:   http://localhost:${PORT}/api/site-stats`);
-  console.log(`   📰 News API:     http://localhost:${PORT}/api/news`);
-  console.log(`   📬 Messages:     POST http://localhost:${PORT}/api/messages`);
-  console.log(`   👤 Volunteers:   POST http://localhost:${PORT}/api/volunteers\n`);
+  console.log(`🚀 TRY Backend API Server running at http://localhost:${PORT}`);
+  console.log(`   Health check:  http://localhost:${PORT}/api/health`);
+  console.log(`   Site stats:    http://localhost:${PORT}/api/site-stats`);
+  console.log(`   Messages:      POST http://localhost:${PORT}/api/messages`);
 });
