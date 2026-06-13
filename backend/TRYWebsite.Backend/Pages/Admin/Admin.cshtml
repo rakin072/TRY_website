@@ -1,0 +1,1216 @@
+@page "/Admin"
+@attribute [Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryToken]
+@using Microsoft.Data.SqlClient
+@using System.Security.Cryptography
+@using System.Text
+@using System.Data
+@using System.Linq
+@inject IConfiguration Configuration
+@inject IWebHostEnvironment Env
+@{
+    Layout = null;
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    string HashPassword(string plain)
+    {
+        using var sha = SHA256.Create();
+        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(plain));
+        return BitConverter.ToString(bytes).Replace("-", "").ToLower();
+    }
+
+    SqlConnection GetConnection()
+    {
+        var cs = Configuration.GetConnectionString("DefaultConnection");
+        var conn = new SqlConnection(cs);
+        conn.Open();
+        return conn;
+    }
+
+    string SaveUpload(IFormFile file, string subfolder)
+    {
+        var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+        var ext = System.IO.Path.GetExtension(file.FileName).ToLower();
+        if (!allowed.Contains(ext)) throw new Exception("Invalid file type.");
+        var dir = System.IO.Path.Combine(Env.WebRootPath, "uploads", subfolder);
+        System.IO.Directory.CreateDirectory(dir);
+        var fname = Guid.NewGuid().ToString("N") + ext;
+        using var fs = new System.IO.FileStream(System.IO.Path.Combine(dir, fname), System.IO.FileMode.Create);
+        file.CopyTo(fs);
+        return $"/uploads/{subfolder}/{fname}";
+    }
+
+    // ── State ────────────────────────────────────────────────────────────────
+    var loggedInUser = HttpContext.Session.GetString("AdminUser");
+    var isLoggedIn = !string.IsNullOrEmpty(loggedInUser);
+    var loginError = "";
+    var active = Request.Query["section"].ToString();
+    if (string.IsNullOrEmpty(active)) active = "dashboard";
+    var msgFlash = Request.Query["msg"].ToString();
+    var filterParam = Request.Query["filter"].ToString();
+
+    // ── POST Handling ────────────────────────────────────────────────────────
+    if (Request.Method == "POST")
+    {
+        var action = Request.Form["action"].ToString();
+
+        if (action == "login")
+        {
+            var uname = Request.Form["username"].ToString();
+            var pwd = Request.Form["password"].ToString();
+            var hash = HashPassword(pwd);
+            try
+            {
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("SELECT username FROM admin_users WHERE username=@u AND password_hash=@h", conn);
+                cmd.Parameters.AddWithValue("@u", uname);
+                cmd.Parameters.AddWithValue("@h", hash);
+                var result = cmd.ExecuteScalar();
+                if (result != null)
+                {
+                    HttpContext.Session.SetString("AdminUser", uname);
+                    Response.Redirect("/Admin");
+                    return;
+                }
+                else
+                {
+                    loginError = "Invalid username or password.";
+                }
+            }
+            catch { loginError = "Database error. Please try again."; }
+        }
+        else if (action == "logout")
+        {
+            HttpContext.Session.Clear();
+            Response.Redirect("/Admin");
+            return;
+        }
+        else if (isLoggedIn)
+        {
+            // ── Activities ──────────────────────────────────────────────────
+            if (action == "save_activity")
+            {
+                var actId = int.Parse(Request.Form["act_id"].ToString() ?? "0");
+                var title = Request.Form["act_title"].ToString();
+                var desc = Request.Form["act_desc"].ToString();
+                var icon = Request.Form["act_icon"].ToString();
+                using var conn = GetConnection();
+                if (actId == 0)
+                {
+                    using var cmd = new SqlCommand("INSERT INTO activities (title,description,icon_name,created_at) VALUES (@t,@d,@i,GETDATE())", conn);
+                    cmd.Parameters.AddWithValue("@t", title);
+                    cmd.Parameters.AddWithValue("@d", (object?)desc ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@i", (object?)icon ?? DBNull.Value);
+                    cmd.ExecuteNonQuery();
+                }
+                else
+                {
+                    using var cmd = new SqlCommand("UPDATE activities SET title=@t,description=@d,icon_name=@i WHERE id=@id", conn);
+                    cmd.Parameters.AddWithValue("@t", title);
+                    cmd.Parameters.AddWithValue("@d", (object?)desc ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@i", (object?)icon ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@id", actId);
+                    cmd.ExecuteNonQuery();
+                }
+                Response.Redirect("/Admin?section=activities&msg=saved"); return;
+            }
+            else if (action == "delete_activity")
+            {
+                var actId = int.Parse(Request.Form["act_id"].ToString() ?? "0");
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("DELETE FROM activities WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@id", actId);
+                cmd.ExecuteNonQuery();
+                Response.Redirect("/Admin?section=activities&msg=deleted"); return;
+            }
+            // ── News ────────────────────────────────────────────────────────
+            else if (action == "save_news")
+            {
+                var newsId = int.Parse(Request.Form["news_id"].ToString() ?? "0");
+                var title = Request.Form["news_title"].ToString();
+                var cat = Request.Form["news_cat"].ToString();
+                var content = Request.Form["news_content"].ToString();
+                var dateStr = Request.Form["news_date"].ToString();
+                var isPublished = Request.Form["news_published"].ToString() == "1" ? 1 : 0;
+                DateTime? pubDate = string.IsNullOrEmpty(dateStr) ? null : DateTime.Parse(dateStr);
+                string? imagePath = null;
+                var imgFile = Request.Form.Files["news_image"];
+                if (imgFile != null && imgFile.Length > 0) imagePath = SaveUpload(imgFile, "news");
+                using var conn = GetConnection();
+                if (newsId == 0)
+                {
+                    using var cmd = new SqlCommand("INSERT INTO news (title,category,content,image_path,published_at,is_published) VALUES (@t,@c,@co,@img,@pd,@ip)", conn);
+                    cmd.Parameters.AddWithValue("@t", title);
+                    cmd.Parameters.AddWithValue("@c", (object?)cat ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@co", (object?)content ?? DBNull.Value);
+                    cmd.Parameters.Add("@img", SqlDbType.NVarChar, 255).Value = (object?)imagePath ?? DBNull.Value;
+                    cmd.Parameters.Add("@pd", SqlDbType.DateTime).Value = (object?)pubDate ?? DBNull.Value;
+                    cmd.Parameters.AddWithValue("@ip", isPublished);
+                    cmd.ExecuteNonQuery();
+                }
+                else
+                {
+                    if (imagePath != null)
+                    {
+                        using var cmd = new SqlCommand("UPDATE news SET title=@t,category=@c,content=@co,image_path=@img,published_at=@pd,is_published=@ip WHERE id=@id", conn);
+                        cmd.Parameters.AddWithValue("@t", title);
+                        cmd.Parameters.AddWithValue("@c", (object?)cat ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@co", (object?)content ?? DBNull.Value);
+                        cmd.Parameters.Add("@img", SqlDbType.NVarChar, 255).Value = (object?)imagePath ?? DBNull.Value;
+                        cmd.Parameters.Add("@pd", SqlDbType.DateTime).Value = (object?)pubDate ?? DBNull.Value;
+                        cmd.Parameters.AddWithValue("@ip", isPublished);
+                        cmd.Parameters.AddWithValue("@id", newsId);
+                        cmd.ExecuteNonQuery();
+                    }
+                    else
+                    {
+                        using var cmd = new SqlCommand("UPDATE news SET title=@t,category=@c,content=@co,published_at=@pd,is_published=@ip WHERE id=@id", conn);
+                        cmd.Parameters.AddWithValue("@t", title);
+                        cmd.Parameters.AddWithValue("@c", (object?)cat ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@co", (object?)content ?? DBNull.Value);
+                        cmd.Parameters.Add("@pd", SqlDbType.DateTime).Value = (object?)pubDate ?? DBNull.Value;
+                        cmd.Parameters.AddWithValue("@ip", isPublished);
+                        cmd.Parameters.AddWithValue("@id", newsId);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                Response.Redirect("/Admin?section=news&msg=saved"); return;
+            }
+            else if (action == "toggle_news")
+            {
+                var newsId = int.Parse(Request.Form["news_id"].ToString() ?? "0");
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("UPDATE news SET is_published=1-is_published WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@id", newsId);
+                cmd.ExecuteNonQuery();
+                Response.Redirect("/Admin?section=news&msg=toggled"); return;
+            }
+            else if (action == "delete_news")
+            {
+                var newsId = int.Parse(Request.Form["news_id"].ToString() ?? "0");
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("DELETE FROM news WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@id", newsId);
+                cmd.ExecuteNonQuery();
+                Response.Redirect("/Admin?section=news&msg=deleted"); return;
+            }
+            // ── Impact Stories ──────────────────────────────────────────────
+            else if (action == "save_story")
+            {
+                var storyId = int.Parse(Request.Form["story_id"].ToString() ?? "0");
+                var quote = Request.Form["story_quote"].ToString();
+                var author = Request.Form["story_author"].ToString();
+                var role = Request.Form["story_role"].ToString();
+                using var conn = GetConnection();
+                if (storyId == 0)
+                {
+                    using var cmd = new SqlCommand("INSERT INTO impact_stories (quote_text,author_name,author_role,created_at) VALUES (@q,@a,@r,GETDATE())", conn);
+                    cmd.Parameters.AddWithValue("@q", quote);
+                    cmd.Parameters.AddWithValue("@a", author);
+                    cmd.Parameters.AddWithValue("@r", (object?)role ?? DBNull.Value);
+                    cmd.ExecuteNonQuery();
+                }
+                else
+                {
+                    using var cmd = new SqlCommand("UPDATE impact_stories SET quote_text=@q,author_name=@a,author_role=@r WHERE id=@id", conn);
+                    cmd.Parameters.AddWithValue("@q", quote);
+                    cmd.Parameters.AddWithValue("@a", author);
+                    cmd.Parameters.AddWithValue("@r", (object?)role ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@id", storyId);
+                    cmd.ExecuteNonQuery();
+                }
+                Response.Redirect("/Admin?section=stories&msg=saved"); return;
+            }
+            else if (action == "delete_story")
+            {
+                var storyId = int.Parse(Request.Form["story_id"].ToString() ?? "0");
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("DELETE FROM impact_stories WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@id", storyId);
+                cmd.ExecuteNonQuery();
+                Response.Redirect("/Admin?section=stories&msg=deleted"); return;
+            }
+            // ── Gallery ─────────────────────────────────────────────────────
+            else if (action == "upload_gallery")
+            {
+                var galFile = Request.Form.Files["gal_image"];
+                var caption = Request.Form["gal_caption"].ToString();
+                if (galFile != null && galFile.Length > 0)
+                {
+                    var path = SaveUpload(galFile, "gallery");
+                    using var conn = GetConnection();
+                    using var cmd = new SqlCommand("INSERT INTO gallery (image_path,caption,created_at) VALUES (@p,@c,GETDATE())", conn);
+                    cmd.Parameters.AddWithValue("@p", path);
+                    cmd.Parameters.AddWithValue("@c", (object?)caption ?? DBNull.Value);
+                    cmd.ExecuteNonQuery();
+                }
+                Response.Redirect("/Admin?section=gallery&msg=uploaded"); return;
+            }
+            else if (action == "delete_gallery")
+            {
+                var galId = int.Parse(Request.Form["gal_id"].ToString() ?? "0");
+                using var conn = GetConnection();
+                string? filePath = null;
+                using (var cmd = new SqlCommand("SELECT image_path FROM gallery WHERE id=@id", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", galId);
+                    filePath = cmd.ExecuteScalar()?.ToString();
+                }
+                using (var cmd = new SqlCommand("DELETE FROM gallery WHERE id=@id", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", galId);
+                    cmd.ExecuteNonQuery();
+                }
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    var physPath = System.IO.Path.Combine(Env.WebRootPath, filePath.TrimStart('/').Replace('/', System.IO.Path.DirectorySeparatorChar));
+                    if (System.IO.File.Exists(physPath)) System.IO.File.Delete(physPath);
+                }
+                Response.Redirect("/Admin?section=gallery&msg=deleted"); return;
+            }
+            // ── Messages ────────────────────────────────────────────────────
+            else if (action == "mark_all_read")
+            {
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("UPDATE messages SET is_read=1", conn);
+                cmd.ExecuteNonQuery();
+                Response.Redirect("/Admin?section=messages&msg=all_read"); return;
+            }
+            else if (action == "toggle_msg")
+            {
+                var msgId = int.Parse(Request.Form["msg_id"].ToString() ?? "0");
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("UPDATE messages SET is_read=1-is_read WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@id", msgId);
+                cmd.ExecuteNonQuery();
+                Response.Redirect("/Admin?section=messages&msg=toggled"); return;
+            }
+            else if (action == "delete_msg")
+            {
+                var msgId = int.Parse(Request.Form["msg_id"].ToString() ?? "0");
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("DELETE FROM messages WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@id", msgId);
+                cmd.ExecuteNonQuery();
+                Response.Redirect("/Admin?section=messages&msg=deleted"); return;
+            }
+            // ── Volunteers ──────────────────────────────────────────────────
+            else if (action == "set_volunteer_status")
+            {
+                var volId = int.Parse(Request.Form["vol_id"].ToString() ?? "0");
+                var volStatus = Request.Form["vol_status"].ToString();
+                if (volStatus != "Approved" && volStatus != "Rejected" && volStatus != "Pending") volStatus = "Pending";
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("UPDATE volunteers SET status=@s WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@s", volStatus);
+                cmd.Parameters.AddWithValue("@id", volId);
+                cmd.ExecuteNonQuery();
+                Response.Redirect("/Admin?section=volunteers&msg=updated"); return;
+            }
+            else if (action == "delete_volunteer")
+            {
+                var volId = int.Parse(Request.Form["vol_id"].ToString() ?? "0");
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("DELETE FROM volunteers WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@id", volId);
+                cmd.ExecuteNonQuery();
+                Response.Redirect("/Admin?section=volunteers&msg=deleted"); return;
+            }
+            // ── Site Stats ──────────────────────────────────────────────────
+            else if (action == "save_stats")
+            {
+                var vCount = int.Parse(Request.Form["stat_volunteers"].ToString() ?? "0");
+                var pCount = int.Parse(Request.Form["stat_projects"].ToString() ?? "0");
+                var hCount = int.Parse(Request.Form["stat_helped"].ToString() ?? "0");
+                var yCount = int.Parse(Request.Form["stat_years"].ToString() ?? "0");
+                using var conn = GetConnection();
+                using var cmd = new SqlCommand("UPDATE site_stats SET volunteers_count=@v,projects_count=@p,people_helped=@h,years_active=@y WHERE id=1", conn);
+                cmd.Parameters.AddWithValue("@v", vCount);
+                cmd.Parameters.AddWithValue("@p", pCount);
+                cmd.Parameters.AddWithValue("@h", hCount);
+                cmd.Parameters.AddWithValue("@y", yCount);
+                cmd.ExecuteNonQuery();
+                Response.Redirect("/Admin?section=stats&msg=saved"); return;
+            }
+        }
+    }
+
+    // ── Data Loading (GET or after failed POST) ──────────────────────────────
+    // Only load data if logged in (session guard)
+    int cntActivities = 0, cntNews = 0, cntPublished = 0, cntGallery = 0, cntUnreadMsgs = 0, cntPendingVols = 0;
+    var activities = new List<dynamic>();
+    var newsList = new List<dynamic>();
+    var stories = new List<dynamic>();
+    var gallery = new List<dynamic>();
+    var messages = new List<dynamic>();
+    var volunteers = new List<dynamic>();
+    int statVolunteers = 0, statProjects = 0, statHelped = 0, statYears = 0;
+    var recentMessages = new List<dynamic>();
+    var recentVolunteers = new List<dynamic>();
+
+    // Pre-fill for edit
+    dynamic? editActivity = null;
+    dynamic? editNews = null;
+    dynamic? editStory = null;
+
+    if (isLoggedIn)
+    {
+        try
+        {
+            using var conn = GetConnection();
+
+            // ── Dashboard counts ────────────────────────────────────────────
+            using (var cmd = new SqlCommand("SELECT COUNT(*) FROM activities", conn))
+                cntActivities = (int)cmd.ExecuteScalar();
+            using (var cmd = new SqlCommand("SELECT COUNT(*) FROM news", conn))
+                cntNews = (int)cmd.ExecuteScalar();
+            using (var cmd = new SqlCommand("SELECT COUNT(*) FROM news WHERE is_published=1", conn))
+                cntPublished = (int)cmd.ExecuteScalar();
+            using (var cmd = new SqlCommand("SELECT COUNT(*) FROM gallery", conn))
+                cntGallery = (int)cmd.ExecuteScalar();
+            using (var cmd = new SqlCommand("SELECT COUNT(*) FROM messages WHERE is_read=0", conn))
+                cntUnreadMsgs = (int)cmd.ExecuteScalar();
+            using (var cmd = new SqlCommand("SELECT COUNT(*) FROM volunteers WHERE status='Pending'", conn))
+                cntPendingVols = (int)cmd.ExecuteScalar();
+
+            // ── Recent messages (dashboard) ─────────────────────────────────
+            using (var cmd = new SqlCommand("SELECT TOP 5 name,subject,received_at,is_read FROM messages ORDER BY received_at DESC", conn))
+            using (var rdr = cmd.ExecuteReader())
+                while (rdr.Read())
+                    recentMessages.Add(new { Name = rdr.GetString(0), Subject = rdr.IsDBNull(1) ? "" : rdr.GetString(1), ReceivedAt = rdr.GetDateTime(2).ToString("dd MMM yy HH:mm"), IsRead = rdr.GetBoolean(3) });
+
+            // ── Recent volunteers (dashboard) ────────────────────────────────
+            using (var cmd = new SqlCommand("SELECT TOP 5 name,email,status,submitted_at FROM volunteers ORDER BY submitted_at DESC", conn))
+            using (var rdr = cmd.ExecuteReader())
+                while (rdr.Read())
+                    recentVolunteers.Add(new { Name = rdr.GetString(0), Email = rdr.GetString(1), Status = rdr.GetString(2), SubmittedAt = rdr.GetDateTime(3).ToString("dd MMM yy") });
+
+            // ── Activities list ─────────────────────────────────────────────
+            using (var cmd = new SqlCommand("SELECT id,title,description,icon_name,created_at FROM activities ORDER BY created_at DESC", conn))
+            using (var rdr = cmd.ExecuteReader())
+                while (rdr.Read())
+                    activities.Add(new { Id = rdr.GetInt32(0), Title = rdr.GetString(1), Description = rdr.IsDBNull(2) ? "" : rdr.GetString(2), Icon = rdr.IsDBNull(3) ? "" : rdr.GetString(3), CreatedAt = rdr.GetDateTime(4).ToString("dd MMM yyyy") });
+
+            // ── Edit activity pre-fill ──────────────────────────────────────
+            var editActId = Request.Query["edit_id"].ToString();
+            if (active == "activities" && !string.IsNullOrEmpty(editActId))
+            {
+                using var cmd = new SqlCommand("SELECT id,title,description,icon_name FROM activities WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@id", int.Parse(editActId));
+                using var rdr = cmd.ExecuteReader();
+                if (rdr.Read())
+                    editActivity = new { Id = rdr.GetInt32(0), Title = rdr.GetString(1), Description = rdr.IsDBNull(2) ? "" : rdr.GetString(2), Icon = rdr.IsDBNull(3) ? "" : rdr.GetString(3) };
+            }
+
+            // ── News list ───────────────────────────────────────────────────
+            using (var cmd = new SqlCommand("SELECT id,title,category,published_at,is_published,image_path FROM news ORDER BY COALESCE(published_at, GETDATE()) DESC", conn))
+            using (var rdr = cmd.ExecuteReader())
+                while (rdr.Read())
+                    newsList.Add(new { Id = rdr.GetInt32(0), Title = rdr.GetString(1), Category = rdr.IsDBNull(2) ? "" : rdr.GetString(2), PublishedAt = rdr.IsDBNull(3) ? "" : rdr.GetDateTime(3).ToString("dd MMM yyyy"), IsPublished = rdr.GetBoolean(4), Image = rdr.IsDBNull(5) ? "" : rdr.GetString(5) });
+
+            // ── Edit news pre-fill ──────────────────────────────────────────
+            var editNewsId = Request.Query["edit_id"].ToString();
+            if (active == "news" && !string.IsNullOrEmpty(editNewsId))
+            {
+                using var cmd = new SqlCommand("SELECT id,title,category,content,published_at,is_published,image_path FROM news WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@id", int.Parse(editNewsId));
+                using var rdr = cmd.ExecuteReader();
+                if (rdr.Read())
+                    editNews = new { Id = rdr.GetInt32(0), Title = rdr.GetString(1), Category = rdr.IsDBNull(2) ? "" : rdr.GetString(2), Content = rdr.IsDBNull(3) ? "" : rdr.GetString(3), PublishedAt = rdr.IsDBNull(4) ? "" : rdr.GetDateTime(4).ToString("yyyy-MM-dd"), IsPublished = rdr.GetBoolean(5), Image = rdr.IsDBNull(6) ? "" : rdr.GetString(6) };
+            }
+
+            // ── Stories list ────────────────────────────────────────────────
+            using (var cmd = new SqlCommand("SELECT id,quote_text,author_name,author_role,created_at FROM impact_stories ORDER BY created_at DESC", conn))
+            using (var rdr = cmd.ExecuteReader())
+                while (rdr.Read())
+                    stories.Add(new { Id = rdr.GetInt32(0), Quote = rdr.GetString(1), Author = rdr.GetString(2), Role = rdr.IsDBNull(3) ? "" : rdr.GetString(3), CreatedAt = rdr.GetDateTime(4).ToString("dd MMM yyyy") });
+
+            // ── Edit story pre-fill ─────────────────────────────────────────
+            var editStoryId = Request.Query["edit_id"].ToString();
+            if (active == "stories" && !string.IsNullOrEmpty(editStoryId))
+            {
+                using var cmd = new SqlCommand("SELECT id,quote_text,author_name,author_role FROM impact_stories WHERE id=@id", conn);
+                cmd.Parameters.AddWithValue("@id", int.Parse(editStoryId));
+                using var rdr = cmd.ExecuteReader();
+                if (rdr.Read())
+                    editStory = new { Id = rdr.GetInt32(0), Quote = rdr.GetString(1), Author = rdr.GetString(2), Role = rdr.IsDBNull(3) ? "" : rdr.GetString(3) };
+            }
+
+            // ── Gallery list ────────────────────────────────────────────────
+            using (var cmd = new SqlCommand("SELECT id,image_path,caption,created_at FROM gallery ORDER BY created_at DESC", conn))
+            using (var rdr = cmd.ExecuteReader())
+                while (rdr.Read())
+                    gallery.Add(new { Id = rdr.GetInt32(0), Path = rdr.GetString(1), Caption = rdr.IsDBNull(2) ? "" : rdr.GetString(2), CreatedAt = rdr.GetDateTime(3).ToString("dd MMM yyyy") });
+
+            // ── Messages list ───────────────────────────────────────────────
+            var msgWhere = filterParam switch { "unread" => " WHERE is_read=0", "read" => " WHERE is_read=1", _ => "" };
+            using (var cmd = new SqlCommand($"SELECT id,name,email,subject,message,received_at,is_read FROM messages{msgWhere} ORDER BY received_at DESC", conn))
+            using (var rdr = cmd.ExecuteReader())
+                while (rdr.Read())
+                    messages.Add(new { Id = rdr.GetInt32(0), Name = rdr.GetString(1), Email = rdr.GetString(2), Subject = rdr.IsDBNull(3) ? "" : rdr.GetString(3), Message = rdr.IsDBNull(4) ? "" : rdr.GetString(4), ReceivedAt = rdr.GetDateTime(5).ToString("dd MMM yy HH:mm"), IsRead = rdr.GetBoolean(6) });
+
+            // ── Volunteers list ─────────────────────────────────────────────
+            var volWhere = (filterParam == "Pending" || filterParam == "Approved" || filterParam == "Rejected") ? $" WHERE status='{filterParam}'" : "";
+            using (var cmd = new SqlCommand($"SELECT id,name,email,phone,submitted_at,status FROM volunteers{volWhere} ORDER BY submitted_at DESC", conn))
+            using (var rdr = cmd.ExecuteReader())
+                while (rdr.Read())
+                    volunteers.Add(new { Id = rdr.GetInt32(0), Name = rdr.GetString(1), Email = rdr.GetString(2), Phone = rdr.IsDBNull(3) ? "" : rdr.GetString(3), SubmittedAt = rdr.GetDateTime(4).ToString("dd MMM yyyy"), Status = rdr.GetString(5) });
+
+            // ── Site stats ──────────────────────────────────────────────────
+            using (var cmd = new SqlCommand("SELECT volunteers_count,projects_count,people_helped,years_active FROM site_stats WHERE id=1", conn))
+            using (var rdr = cmd.ExecuteReader())
+                if (rdr.Read()) { statVolunteers = rdr.GetInt32(0); statProjects = rdr.GetInt32(1); statHelped = rdr.GetInt32(2); statYears = rdr.GetInt32(3); }
+        }
+        catch
+        {
+            // Silently fail individual queries — the page will still render with empty lists
+        }
+    }
+
+    // ── Flash message text ───────────────────────────────────────────────────
+    var flashText = msgFlash switch
+    {
+        "saved" => "✅ Record saved successfully.",
+        "deleted" => "🗑️ Record deleted.",
+        "toggled" => "🔄 Status updated.",
+        "uploaded" => "📤 Image uploaded successfully.",
+        "all_read" => "✅ All messages marked as read.",
+        "updated" => "✅ Status updated.",
+        _ => ""
+    };
+
+    // ── Sidebar active class helper ──────────────────────────────────────────
+    string NavClass(string s) => active == s ? "nav-item active" : "nav-item";
+
+    // ── Display helper ───────────────────────────────────────────────────────
+    string Show(string s) => active == s ? "block" : "none";
+
+    // ── Section title ────────────────────────────────────────────────────────
+    var sectionTitle = active switch
+    {
+        "dashboard"  => "Dashboard",
+        "activities" => "Activities",
+        "news"       => "News Management",
+        "stories"    => "Impact Stories",
+        "gallery"    => "Gallery",
+        "messages"   => "Messages",
+        "volunteers" => "Volunteers",
+        "stats"      => "Site Statistics",
+        _            => "Dashboard"
+    };
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel — TRY KUET</title>
+    <meta name="description" content="TRY KUET Social Service Club — Admin Management Panel">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="/Admin/admin.css">
+</head>
+<body>
+
+@if (!isLoggedIn)
+{
+    <!-- ═══════════════════ LOGIN SCREEN ═══════════════════ -->
+    <div class="login-wrap">
+        <div class="login-card">
+            <div class="login-logo">
+                <div class="login-logo-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                <h2>TRY Admin</h2>
+                <p>KUET Social Service Club</p>
+            </div>
+            @if (!string.IsNullOrEmpty(loginError))
+            {
+                <div class="flash flash-error" style="margin:0 0 16px;"><i class="fa-solid fa-triangle-exclamation"></i> @loginError</div>
+            }
+            <form method="post" action="/Admin">
+                <input name="action" value="login" type="hidden">
+                <div class="form-group">
+                    <label for="login-username"><i class="fa-solid fa-user"></i> Username</label>
+                    <input type="text" id="login-username" name="username" required autocomplete="username" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label for="login-password"><i class="fa-solid fa-lock"></i> Password</label>
+                    <input type="password" id="login-password" name="password" required autocomplete="current-password" placeholder="Enter password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" id="login-btn">
+                    <i class="fa-solid fa-right-to-bracket"></i> Login
+                </button>
+            </form>
+        </div>
+    </div>
+}
+else
+{
+    <!-- ═══════════════════ ADMIN PANEL ═══════════════════ -->
+    <div class="admin-wrap">
+
+        <!-- ── SIDEBAR ──────────────────────────────────────────────── -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <div class="sidebar-logo-icon"><i class="fa-solid fa-hands-helping"></i></div>
+                <div><span class="logo-try">TRY</span> KUET</div>
+                <small>Admin Panel</small>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="/Admin?section=dashboard" class="@NavClass("dashboard")">
+                    <i class="fa-solid fa-gauge-high nav-icon"></i> Dashboard
+                </a>
+                <a href="/Admin?section=activities" class="@NavClass("activities")">
+                    <i class="fa-solid fa-list-check nav-icon"></i> Activities
+                </a>
+                <a href="/Admin?section=news" class="@NavClass("news")">
+                    <i class="fa-solid fa-newspaper nav-icon"></i> News
+                </a>
+                <a href="/Admin?section=stories" class="@NavClass("stories")">
+                    <i class="fa-solid fa-quote-left nav-icon"></i> Impact Stories
+                </a>
+                <a href="/Admin?section=gallery" class="@NavClass("gallery")">
+                    <i class="fa-solid fa-images nav-icon"></i> Gallery
+                </a>
+                <a href="/Admin?section=messages" class="@NavClass("messages")">
+                    <i class="fa-solid fa-envelope nav-icon"></i> Messages
+                    @if (cntUnreadMsgs > 0)
+                    {
+                        <span class="nav-badge">@cntUnreadMsgs</span>
+                    }
+                </a>
+                <a href="/Admin?section=volunteers" class="@NavClass("volunteers")">
+                    <i class="fa-solid fa-people-group nav-icon"></i> Volunteers
+                    @if (cntPendingVols > 0)
+                    {
+                        <span class="nav-badge">@cntPendingVols</span>
+                    }
+                </a>
+                <a href="/Admin?section=stats" class="@NavClass("stats")">
+                    <i class="fa-solid fa-chart-bar nav-icon"></i> Site Stats
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <form method="post" action="/Admin">
+                    <input name="action" value="logout" type="hidden">
+                    <button type="submit" class="btn-logout" id="logout-btn">
+                        <i class="fa-solid fa-right-from-bracket"></i> Logout
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- ── MAIN CONTENT ──────────────────────────────────────────── -->
+        <main class="admin-main">
+
+            <!-- TOP BAR -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="sidebar-toggle" id="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <span class="page-title">@sectionTitle</span>
+                </div>
+                <div class="admin-info">
+                    <div class="admin-avatar"><i class="fa-solid fa-user"></i></div>
+                    <span class="admin-name">@loggedInUser</span>
+                </div>
+            </header>
+
+            <!-- FLASH MESSAGE -->
+            @if (!string.IsNullOrEmpty(flashText))
+            {
+                <div class="flash flash-success" id="flash-msg">@flashText</div>
+            }
+
+            <!-- ══════════════ SECTION: DASHBOARD ══════════════ -->
+            <section id="sec-dashboard" style="display:@Show("dashboard")">
+                <div class="stats-row">
+                    <div class="stat-card" style="border-left-color:#e94560">
+                        <div class="stat-icon" style="background:#fde8ec"><i class="fa-solid fa-list-check" style="color:#e94560"></i></div>
+                        <div class="num">@cntActivities</div>
+                        <div class="lbl">Activities</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color:#0984e3">
+                        <div class="stat-icon" style="background:#dbeeff"><i class="fa-solid fa-newspaper" style="color:#0984e3"></i></div>
+                        <div class="num">@cntNews</div>
+                        <div class="lbl">News Posts</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color:#00b894">
+                        <div class="stat-icon" style="background:#d4f7ee"><i class="fa-solid fa-circle-check" style="color:#00b894"></i></div>
+                        <div class="num">@cntPublished</div>
+                        <div class="lbl">Published</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color:#6c5ce7">
+                        <div class="stat-icon" style="background:#ede9fd"><i class="fa-solid fa-images" style="color:#6c5ce7"></i></div>
+                        <div class="num">@cntGallery</div>
+                        <div class="lbl">Gallery Items</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color:#fdcb6e">
+                        <div class="stat-icon" style="background:#fff8e7"><i class="fa-solid fa-envelope" style="color:#fdcb6e"></i></div>
+                        <div class="num">@cntUnreadMsgs</div>
+                        <div class="lbl">Unread Messages</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color:#fd79a8">
+                        <div class="stat-icon" style="background:#fde8f3"><i class="fa-solid fa-hourglass-half" style="color:#fd79a8"></i></div>
+                        <div class="num">@cntPendingVols</div>
+                        <div class="lbl">Pending Volunteers</div>
+                    </div>
+                </div>
+
+                <div class="section-body">
+                    <div class="dual-tables">
+                        <div class="card-box">
+                            <h3 class="section-title"><i class="fa-solid fa-envelope"></i> Latest Messages</h3>
+                            <div class="table-wrap">
+                                <table class="admin-table">
+                                    <thead><tr><th>Name</th><th>Subject</th><th>Received</th><th>Status</th></tr></thead>
+                                    <tbody>
+                                    @foreach (dynamic m in recentMessages)
+                                    {
+                                        <tr>
+                                            <td>@m.Name</td>
+                                            <td>@m.Subject</td>
+                                            <td>@m.ReceivedAt</td>
+                                            <td>
+                                                @if ((bool)m.IsRead)
+                                                { <span class="badge badge-secondary">Read</span> }
+                                                else
+                                                { <span class="badge badge-danger">Unread</span> }
+                                            </td>
+                                        </tr>
+                                    }
+                                    @if (!recentMessages.Any())
+                                    {
+                                        <tr><td colspan="4" class="empty-row">No messages yet.</td></tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card-box">
+                            <h3 class="section-title"><i class="fa-solid fa-people-group"></i> Latest Volunteers</h3>
+                            <div class="table-wrap">
+                                <table class="admin-table">
+                                    <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Submitted</th></tr></thead>
+                                    <tbody>
+                                    @foreach (dynamic v in recentVolunteers)
+                                    {
+                                        <tr>
+                                            <td>@v.Name</td>
+                                            <td>@v.Email</td>
+                                            <td>
+                                                @{ var vc = v.Status == "Approved" ? "badge-success" : v.Status == "Rejected" ? "badge-danger" : "badge-warning"; }
+                                                <span class="badge @vc">@v.Status</span>
+                                            </td>
+                                            <td>@v.SubmittedAt</td>
+                                        </tr>
+                                    }
+                                    @if (!recentVolunteers.Any())
+                                    {
+                                        <tr><td colspan="4" class="empty-row">No volunteers yet.</td></tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════ SECTION: ACTIVITIES ══════════════ -->
+            <section id="sec-activities" style="display:@Show("activities")">
+                <div class="section-body">
+                    <div class="card-box">
+                        <h3 class="section-title">@(editActivity != null ? "✏️ Edit Activity" : "➕ Add Activity")</h3>
+                        <form method="post" action="/Admin?section=activities">
+                            <input name="action" value="save_activity" type="hidden">
+                            <input name="act_id" value="@(editActivity != null ? editActivity.Id : 0)" type="hidden" id="act_id_hidden">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="act_title">Title *</label>
+                                    <input type="text" id="act_title" name="act_title" required value="@(editActivity != null ? editActivity.Title : "")">
+                                </div>
+                                <div class="form-group">
+                                    <label for="act_icon">Icon Class</label>
+                                    <input type="text" id="act_icon" name="act_icon" placeholder="fa-solid fa-heart" value="@(editActivity != null ? editActivity.Icon : "")">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="act_desc">Description</label>
+                                <textarea id="act_desc" name="act_desc" rows="3">@(editActivity != null ? editActivity.Description : "")</textarea>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" id="save-activity-btn">
+                                    <i class="fa-solid fa-floppy-disk"></i> @(editActivity != null ? "Update Activity" : "Save Activity")
+                                </button>
+                                @if (editActivity != null)
+                                {
+                                    <a href="/Admin?section=activities" class="btn btn-secondary" id="cancel-edit-activity">Cancel</a>
+                                }
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card-box">
+                        <h3 class="section-title"><i class="fa-solid fa-list"></i> All Activities (@activities.Count)</h3>
+                        <div class="table-wrap">
+                            <table class="admin-table">
+                                <thead><tr><th>#</th><th>Title</th><th>Icon</th><th>Description</th><th>Created</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                @{ int aIdx = 1; }
+                                @foreach (dynamic a in activities)
+                                {
+                                    <tr>
+                                        <td>@(aIdx++)</td>
+                                        <td><strong>@a.Title</strong></td>
+                                        <td><i class="@a.Icon"></i> <small>@a.Icon</small></td>
+                                        <td>@(a.Description.Length > 80 ? a.Description.Substring(0, 80) + "…" : a.Description)</td>
+                                        <td>@a.CreatedAt</td>
+                                        <td class="action-cell">
+                                            <a href="/Admin?section=activities&edit_id=@a.Id" class="btn btn-warning btn-sm"><i class="fa-solid fa-pen"></i> Edit</a>
+                                            <form method="post" action="/Admin?section=activities" style="display:inline">
+                                                <input name="action" value="delete_activity" type="hidden">
+                                                <input name="act_id" value="@a.Id" type="hidden">
+                                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this activity?')"><i class="fa-solid fa-trash"></i> Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!activities.Any())
+                                {
+                                    <tr><td colspan="6" class="empty-row">No activities found.</td></tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════ SECTION: NEWS ══════════════ -->
+            <section id="sec-news" style="display:@Show("news")">
+                <div class="section-body">
+                    <div class="card-box">
+                        <h3 class="section-title">@(editNews != null ? "✏️ Edit News" : "➕ Add News")</h3>
+                        <form method="post" action="/Admin?section=news" enctype="multipart/form-data">
+                            <input name="action" value="save_news" type="hidden">
+                            <input name="news_id" value="@(editNews != null ? editNews.Id : 0)" type="hidden">
+                            <div class="form-row">
+                                <div class="form-group" style="flex:2">
+                                    <label for="news_title">Title *</label>
+                                    <input type="text" id="news_title" name="news_title" required value="@(editNews != null ? editNews.Title : "")">
+                                </div>
+                                <div class="form-group">
+                                    <label for="news_cat">Category</label>
+                                    <input type="text" id="news_cat" name="news_cat" placeholder="Event / Announcement / Update" value="@(editNews != null ? editNews.Category : "")">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="news_content">Content</label>
+                                <textarea id="news_content" name="news_content" rows="5">@(editNews != null ? editNews.Content : "")</textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="news_date">Published At</label>
+                                    <input type="date" id="news_date" name="news_date" value="@(editNews != null ? editNews.PublishedAt : "")">
+                                </div>
+                                <div class="form-group">
+                                    <label for="news_image">Image (leave blank to keep existing)</label>
+                                    <input type="file" id="news_image" name="news_image" accept=".jpg,.jpeg,.png,.webp,.gif" class="file-input">
+                                </div>
+                                <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px">
+                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                                        <input type="checkbox" id="news_published" name="news_published" value="1" @(editNews?.IsPublished == true ? "checked" : "")>
+                                        <span>Published</span>
+                                    </label>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty((string?)editNews?.Image))
+                            {
+                                <div class="current-image-wrap">
+                                    <small>Current image:</small>
+                                    <img src="@(editNews?.Image)" alt="Current" class="current-thumb">
+                                </div>
+                            }
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" id="save-news-btn">
+                                    <i class="fa-solid fa-floppy-disk"></i> @(editNews != null ? "Update News" : "Save News")
+                                </button>
+                                @if (editNews != null)
+                                {
+                                    <a href="/Admin?section=news" class="btn btn-secondary" id="cancel-edit-news">Cancel</a>
+                                }
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card-box">
+                        <h3 class="section-title"><i class="fa-solid fa-newspaper"></i> All News (@newsList.Count)</h3>
+                        <div class="table-wrap">
+                            <table class="admin-table">
+                                <thead><tr><th>#</th><th>Title</th><th>Category</th><th>Published At</th><th>Status</th><th>Image</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                @{ int nIdx = 1; }
+                                @foreach (dynamic n in newsList)
+                                {
+                                    <tr>
+                                        <td>@(nIdx++)</td>
+                                        <td><strong>@n.Title</strong></td>
+                                        <td>@n.Category</td>
+                                        <td>@n.PublishedAt</td>
+                                        <td>
+                                            @if ((bool)n.IsPublished)
+                                            { <span class="badge badge-success">🟢 Published</span> }
+                                            else
+                                            { <span class="badge badge-secondary">⚫ Draft</span> }
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(n.Image))
+                                            {
+                                                <img src="@n.Image" alt="thumb" class="table-thumb">
+                                            }
+                                        </td>
+                                        <td class="action-cell">
+                                            <a href="/Admin?section=news&edit_id=@n.Id" class="btn btn-warning btn-sm"><i class="fa-solid fa-pen"></i> Edit</a>
+                                            <form method="post" action="/Admin?section=news" style="display:inline">
+                                                <input name="action" value="toggle_news" type="hidden">
+                                                <input name="news_id" value="@n.Id" type="hidden">
+                                                <button type="submit" class="btn btn-sm" style="background:#0984e3;color:#fff"><i class="fa-solid fa-toggle-on"></i> Toggle</button>
+                                            </form>
+                                            <form method="post" action="/Admin?section=news" style="display:inline">
+                                                <input name="action" value="delete_news" type="hidden">
+                                                <input name="news_id" value="@n.Id" type="hidden">
+                                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this news post?')"><i class="fa-solid fa-trash"></i> Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!newsList.Any())
+                                {
+                                    <tr><td colspan="7" class="empty-row">No news posts found.</td></tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════ SECTION: IMPACT STORIES ══════════════ -->
+            <section id="sec-stories" style="display:@Show("stories")">
+                <div class="section-body">
+                    <div class="card-box">
+                        <h3 class="section-title">@(editStory != null ? "✏️ Edit Story" : "➕ Add Impact Story")</h3>
+                        <form method="post" action="/Admin?section=stories">
+                            <input name="action" value="save_story" type="hidden">
+                            <input name="story_id" value="@(editStory != null ? editStory.Id : 0)" type="hidden">
+                            <div class="form-group">
+                                <label for="story_quote">Quote Text *</label>
+                                <textarea id="story_quote" name="story_quote" rows="4" required>@(editStory != null ? editStory.Quote : "")</textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="story_author">Author Name *</label>
+                                    <input type="text" id="story_author" name="story_author" required value="@(editStory != null ? editStory.Author : "")">
+                                </div>
+                                <div class="form-group">
+                                    <label for="story_role">Author Role</label>
+                                    <input type="text" id="story_role" name="story_role" placeholder="Volunteer / Beneficiary" value="@(editStory != null ? editStory.Role : "")">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" id="save-story-btn">
+                                    <i class="fa-solid fa-floppy-disk"></i> @(editStory != null ? "Update Story" : "Save Story")
+                                </button>
+                                @if (editStory != null)
+                                {
+                                    <a href="/Admin?section=stories" class="btn btn-secondary" id="cancel-edit-story">Cancel</a>
+                                }
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card-box">
+                        <h3 class="section-title"><i class="fa-solid fa-quote-left"></i> All Stories (@stories.Count)</h3>
+                        <div class="table-wrap">
+                            <table class="admin-table">
+                                <thead><tr><th>#</th><th>Quote</th><th>Author</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                @{ int sIdx = 1; }
+                                @foreach (dynamic s in stories)
+                                {
+                                    <tr>
+                                        <td>@(sIdx++)</td>
+                                        <td>@(s.Quote.Length > 100 ? s.Quote.Substring(0, 100) + "…" : s.Quote)</td>
+                                        <td><strong>@s.Author</strong></td>
+                                        <td>@s.Role</td>
+                                        <td>@s.CreatedAt</td>
+                                        <td class="action-cell">
+                                            <a href="/Admin?section=stories&edit_id=@s.Id" class="btn btn-warning btn-sm"><i class="fa-solid fa-pen"></i> Edit</a>
+                                            <form method="post" action="/Admin?section=stories" style="display:inline">
+                                                <input name="action" value="delete_story" type="hidden">
+                                                <input name="story_id" value="@s.Id" type="hidden">
+                                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this story?')"><i class="fa-solid fa-trash"></i> Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!stories.Any())
+                                {
+                                    <tr><td colspan="6" class="empty-row">No stories found.</td></tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════ SECTION: GALLERY ══════════════ -->
+            <section id="sec-gallery" style="display:@Show("gallery")">
+                <div class="section-body">
+                    <div class="card-box">
+                        <h3 class="section-title">📤 Upload Image</h3>
+                        <form method="post" action="/Admin?section=gallery" enctype="multipart/form-data">
+                            <input name="action" value="upload_gallery" type="hidden">
+                            <div class="form-row">
+                                <div class="form-group" style="flex:2">
+                                    <label for="gal_image">Image File *</label>
+                                    <input type="file" id="gal_image" name="gal_image" accept=".jpg,.jpeg,.png,.webp,.gif" required class="file-input">
+                                </div>
+                                <div class="form-group">
+                                    <label for="gal_caption">Caption</label>
+                                    <input type="text" id="gal_caption" name="gal_caption" placeholder="Optional caption">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" id="upload-gallery-btn">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload Image
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card-box">
+                        <h3 class="section-title"><i class="fa-solid fa-images"></i> Gallery (@gallery.Count items)</h3>
+                        @if (gallery.Any())
+                        {
+                            <div class="gallery-grid">
+                            @foreach (dynamic g in gallery)
+                            {
+                                <div class="gallery-item">
+                                    <img src="@g.Path" alt="@g.Caption" loading="lazy">
+                                    <p>@g.Caption</p>
+                                    <small class="muted">@g.CreatedAt</small>
+                                    <form method="post" action="/Admin?section=gallery" style="margin-top:6px">
+                                        <input name="action" value="delete_gallery" type="hidden">
+                                        <input name="gal_id" value="@g.Id" type="hidden">
+                                        <button type="submit" class="btn btn-danger btn-sm btn-block" onclick="return confirm('Delete this image permanently?')">
+                                            <i class="fa-solid fa-trash"></i> Delete
+                                        </button>
+                                    </form>
+                                </div>
+                            }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="empty-row">No gallery images yet. Upload your first image above.</p>
+                        }
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════ SECTION: MESSAGES ══════════════ -->
+            <section id="sec-messages" style="display:@Show("messages")">
+                <div class="section-body">
+                    <div class="card-box">
+                        <div class="section-toolbar">
+                            <div class="filter-tabs">
+                                <a href="/Admin?section=messages&filter=all" class="filter-tab @(filterParam != "unread" && filterParam != "read" ? "active" : "")">All</a>
+                                <a href="/Admin?section=messages&filter=unread" class="filter-tab @(filterParam == "unread" ? "active" : "")">Unread <span class="nav-badge">@cntUnreadMsgs</span></a>
+                                <a href="/Admin?section=messages&filter=read" class="filter-tab @(filterParam == "read" ? "active" : "")">Read</a>
+                            </div>
+                            <form method="post" action="/Admin?section=messages" style="display:inline">
+                                <input name="action" value="mark_all_read" type="hidden">
+                                <button type="submit" class="btn btn-sm" style="background:#00b894;color:#fff" id="mark-all-read-btn">
+                                    <i class="fa-solid fa-check-double"></i> Mark All Read
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="table-wrap">
+                            <table class="admin-table">
+                                <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th><th>Received</th><th>Status</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                @{ int mIdx = 1; }
+                                @foreach (dynamic m in messages)
+                                {
+                                    var msgPreview = m.Message.Length > 60 ? m.Message.Substring(0, 60) + "…" : m.Message;
+                                    <tr class="@(!m.IsRead ? "unread-row" : "")">
+                                        <td>@(mIdx++)</td>
+                                        <td><strong>@m.Name</strong></td>
+                                        <td><a href="mailto:@m.Email" class="email-link">@m.Email</a></td>
+                                        <td>@m.Subject</td>
+                                        <td><span title="@m.Message" class="msg-preview">@msgPreview</span></td>
+                                        <td>@m.ReceivedAt</td>
+                                        <td>
+                                            @if ((bool)m.IsRead)
+                                            { <span class="badge badge-secondary">Read</span> }
+                                            else
+                                            { <span class="badge badge-danger" style="font-weight:700">Unread</span> }
+                                        </td>
+                                        <td class="action-cell">
+                                            <form method="post" action="/Admin?section=messages" style="display:inline">
+                                                <input name="action" value="toggle_msg" type="hidden">
+                                                <input name="msg_id" value="@m.Id" type="hidden">
+                                                <button type="submit" class="btn btn-sm" style="background:#636e72;color:#fff" title="Toggle read/unread"><i class="fa-solid fa-envelope-open"></i></button>
+                                            </form>
+                                            <form method="post" action="/Admin?section=messages" style="display:inline">
+                                                <input name="action" value="delete_msg" type="hidden">
+                                                <input name="msg_id" value="@m.Id" type="hidden">
+                                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this message?')"><i class="fa-solid fa-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!messages.Any())
+                                {
+                                    <tr><td colspan="8" class="empty-row">No messages found.</td></tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════ SECTION: VOLUNTEERS ══════════════ -->
+            <section id="sec-volunteers" style="display:@Show("volunteers")">
+                <div class="section-body">
+                    <div class="card-box">
+                        <div class="section-toolbar">
+                            <div class="filter-tabs">
+                                <a href="/Admin?section=volunteers&filter=all" class="filter-tab @(filterParam != "Pending" && filterParam != "Approved" && filterParam != "Rejected" ? "active" : "")">All</a>
+                                <a href="/Admin?section=volunteers&filter=Pending" class="filter-tab @(filterParam == "Pending" ? "active" : "")">🟡 Pending <span class="nav-badge">@cntPendingVols</span></a>
+                                <a href="/Admin?section=volunteers&filter=Approved" class="filter-tab @(filterParam == "Approved" ? "active" : "")">🟢 Approved</a>
+                                <a href="/Admin?section=volunteers&filter=Rejected" class="filter-tab @(filterParam == "Rejected" ? "active" : "")">🔴 Rejected</a>
+                            </div>
+                        </div>
+
+                        <div class="table-wrap">
+                            <table class="admin-table">
+                                <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Phone</th><th>Submitted</th><th>Status</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                @{ int vIdx = 1; }
+                                @foreach (dynamic v in volunteers)
+                                {
+                                    var vBadge = v.Status == "Approved" ? "badge-success" : v.Status == "Rejected" ? "badge-danger" : "badge-warning";
+                                    <tr>
+                                        <td>@(vIdx++)</td>
+                                        <td><strong>@v.Name</strong></td>
+                                        <td><a href="mailto:@v.Email" class="email-link">@v.Email</a></td>
+                                        <td>@v.Phone</td>
+                                        <td>@v.SubmittedAt</td>
+                                        <td><span class="badge @vBadge">@v.Status</span></td>
+                                        <td class="action-cell">
+                                            @if (v.Status != "Approved")
+                                            {
+                                                <form method="post" action="/Admin?section=volunteers" style="display:inline">
+                                                    <input name="action" value="set_volunteer_status" type="hidden">
+                                                    <input name="vol_id" value="@v.Id" type="hidden">
+                                                    <input name="vol_status" value="Approved" type="hidden">
+                                                    <button type="submit" class="btn btn-success btn-sm"><i class="fa-solid fa-check"></i> Approve</button>
+                                                </form>
+                                            }
+                                            @if (v.Status != "Rejected")
+                                            {
+                                                <form method="post" action="/Admin?section=volunteers" style="display:inline">
+                                                    <input name="action" value="set_volunteer_status" type="hidden">
+                                                    <input name="vol_id" value="@v.Id" type="hidden">
+                                                    <input name="vol_status" value="Rejected" type="hidden">
+                                                    <button type="submit" class="btn btn-danger btn-sm"><i class="fa-solid fa-xmark"></i> Reject</button>
+                                                </form>
+                                            }
+                                            <form method="post" action="/Admin?section=volunteers" style="display:inline">
+                                                <input name="action" value="delete_volunteer" type="hidden">
+                                                <input name="vol_id" value="@v.Id" type="hidden">
+                                                <button type="submit" class="btn btn-sm" style="background:#636e72;color:#fff" onclick="return confirm('Delete this volunteer record?')"><i class="fa-solid fa-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!volunteers.Any())
+                                {
+                                    <tr><td colspan="7" class="empty-row">No volunteers found.</td></tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════ SECTION: SITE STATS ══════════════ -->
+            <section id="sec-stats" style="display:@Show("stats")">
+                <div class="section-body">
+                    <div class="card-box" style="max-width:520px">
+                        <h3 class="section-title"><i class="fa-solid fa-chart-bar"></i> Update Site Statistics</h3>
+                        <p style="color:var(--muted);font-size:.85rem;margin:0 0 20px">These numbers appear on the public homepage as key impact metrics.</p>
+                        <form method="post" action="/Admin?section=stats">
+                            <input name="action" value="save_stats" type="hidden">
+                            <div class="stats-form-grid">
+                                <div class="stat-input-card">
+                                    <div class="stat-input-icon" style="background:#fde8ec"><i class="fa-solid fa-people-group" style="color:#e94560"></i></div>
+                                    <div class="form-group" style="margin:0">
+                                        <label for="stat_volunteers">Volunteers Count</label>
+                                        <input type="number" id="stat_volunteers" name="stat_volunteers" value="@statVolunteers" min="0" required>
+                                    </div>
+                                </div>
+                                <div class="stat-input-card">
+                                    <div class="stat-input-icon" style="background:#dbeeff"><i class="fa-solid fa-diagram-project" style="color:#0984e3"></i></div>
+                                    <div class="form-group" style="margin:0">
+                                        <label for="stat_projects">Projects Count</label>
+                                        <input type="number" id="stat_projects" name="stat_projects" value="@statProjects" min="0" required>
+                                    </div>
+                                </div>
+                                <div class="stat-input-card">
+                                    <div class="stat-input-icon" style="background:#d4f7ee"><i class="fa-solid fa-heart-pulse" style="color:#00b894"></i></div>
+                                    <div class="form-group" style="margin:0">
+                                        <label for="stat_helped">People Helped</label>
+                                        <input type="number" id="stat_helped" name="stat_helped" value="@statHelped" min="0" required>
+                                    </div>
+                                </div>
+                                <div class="stat-input-card">
+                                    <div class="stat-input-icon" style="background:#ede9fd"><i class="fa-solid fa-calendar-days" style="color:#6c5ce7"></i></div>
+                                    <div class="form-group" style="margin:0">
+                                        <label for="stat_years">Years Active</label>
+                                        <input type="number" id="stat_years" name="stat_years" value="@statYears" min="0" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-actions" style="margin-top:24px">
+                                <button type="submit" class="btn btn-primary" id="save-stats-btn">
+                                    <i class="fa-solid fa-floppy-disk"></i> Update Statistics
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+}
+
+<script>
+    // Auto-hide flash message after 4 seconds
+    const flash = document.getElementById('flash-msg');
+    if (flash) setTimeout(() => { flash.style.opacity = '0'; flash.style.transition = 'opacity .5s'; setTimeout(() => flash.remove(), 500); }, 4000);
+</script>
+
+</body>
+</html>
