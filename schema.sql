@@ -97,3 +97,28 @@ GO
 -- SHA-256 hash of 'admin123'
 INSERT INTO admin_users (username, password_hash) VALUES ('admin', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9');
 GO
+
+-- i) admin_remember_tokens (persistent login tokens)
+CREATE TABLE admin_remember_tokens (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    admin_id    INT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+    token_hash  NVARCHAR(64) NOT NULL,   -- SHA-256 hash of the random token
+    expires_at  DATETIME NOT NULL,
+    created_at  DATETIME DEFAULT GETDATE()
+);
+GO
+
+-- j) visitor_log (anonymous visitor tracking)
+CREATE TABLE visitor_log (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    visitor_id  NVARCHAR(36) NOT NULL,   -- GUID
+    page        NVARCHAR(255) NULL,
+    visited_at  DATETIME DEFAULT GETDATE(),
+    user_agent  NVARCHAR(500) NULL
+);
+GO
+
+CREATE INDEX IX_visitor_log_visitor_id ON visitor_log(visitor_id);
+GO
+CREATE INDEX IX_visitor_log_visited_at ON visitor_log(visited_at);
+GO
