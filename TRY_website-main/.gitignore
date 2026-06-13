@@ -1,0 +1,25 @@
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# .NET Build artifacts
+bin/
+obj/
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code & IDE configs
+.vscode/
+.vs/
+*.suo
+*.user
+*.suo
+*.auth
+*.dbmdl
+
+# OS temp files
+.DS_Store
+Thumbs.db
