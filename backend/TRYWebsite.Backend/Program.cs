@@ -32,6 +32,7 @@ builder.Services.AddSession(options =>
 });
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddRazorPages();
 
 var app = builder.Build();
 
@@ -532,6 +533,7 @@ app.MapGet("/api/cookies/status", (HttpContext ctx) =>
 });
 
 
+app.MapRazorPages();
 app.Run();
 
 // ═══════════════════════════════════════════════════════════════════════════
